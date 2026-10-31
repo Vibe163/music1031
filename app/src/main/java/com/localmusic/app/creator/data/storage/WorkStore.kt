@@ -98,20 +98,6 @@ class WorkStore(context: Context) {
         return newWork
     }
 
-    /** 清空所有作品记录 */
-    fun clearAll() {
-        _works.value = emptyList()
-        persist()
-    }
-
-    /** 获取指定作者的所有作品 */
-    fun getByAuthor(authorId: String): List<CreatorWork> =
-        _works.value.filter { it.authorId == authorId }
-
-    /** 获取单个作品 */
-    fun getById(workId: String): CreatorWork? =
-        _works.value.firstOrNull { it.id == workId }
-
     /** 首次安装时预置示例作品，让用户立刻看到效果 */
     private fun seedSampleWorks() {
         val now = System.currentTimeMillis()

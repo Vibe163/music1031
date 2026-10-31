@@ -56,7 +56,7 @@ import com.localmusic.app.creator.viewmodel.CreatorViewModel
 import com.localmusic.app.data.model.FAVORITES_PLAYLIST_ID
 import com.localmusic.app.data.model.PlaylistWithCount
 import com.localmusic.app.data.model.Song
-import kotlin.math.roundToInt
+import com.localmusic.app.util.formatDuration
 
 /**
  * BGM 选择弹窗（1:1 对齐抖音「添加配音」面板截图）
@@ -410,11 +410,4 @@ private fun BottomTool(
         Box(modifier = Modifier.size(26.dp), contentAlignment = Alignment.Center) { icon() }
         Text(label, fontSize = 12.sp, color = labelColor, fontWeight = labelWeight)
     }
-}
-
-private fun formatDuration(ms: Long): String {
-    val totalSec = (ms / 1000f).roundToInt().coerceAtLeast(0)
-    val m = totalSec / 60
-    val s = totalSec % 60
-    return "$m:${s.toString().padStart(2, '0')}"
 }

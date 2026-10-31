@@ -57,8 +57,6 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val TAG = "CreatorViewModel"
-        // 只在旧SAF临时URI迁移期间为true，迁移完成后保持false（否则每次进创作者空间/冷启动作品被清）
-        const val FORCE_CLEAR_WORKS_ON_INIT = false
     }
 
     private val application = app as LocalMusicApp
@@ -67,9 +65,6 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = application.repository
 
     init {
-        if (FORCE_CLEAR_WORKS_ON_INIT) {
-            clearAllWorks()
-        }
         // 清理孤儿作品媒体目录：works/ 下存在但作品记录已不存在的目录（历史复制方案残留/删除竞态）
         cleanupOrphanWorkFiles()
     }
@@ -363,37 +358,6 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
         workStore.updateAuthorInfo(current.userId, cleanNickname, avatarUri)
     }
 
-    /**
-     * 将 SAF 返回的头像 URI 复制到 App 私有目录，返回稳定的 file:// URI 字符串。
-     *
-     * 必要性：OpenDocument 返回的 content:// URI 是临时授权，进程重启后权限失效，
-     * 导致头像读不出来。复制到 filesDir/avatars/ 后完全自主可控，重启后仍可读。
-     *
-     * @return 复制成功返回 file:// URI 字符串；失败返回 null
-     */
-    suspend fun copyAvatarToInternal(sourceUri: Uri): String? = withContext(Dispatchers.IO) {
-        runCatching {
-            val appContext = getApplication<LocalMusicApp>()
-            val avatarDir = File(appContext.filesDir, "avatars").apply { mkdirs() }
-            // 用时间戳命名，避免覆盖
-            val ext = when (appContext.contentResolver.getType(sourceUri)) {
-                "image/png" -> "png"
-                "image/webp" -> "webp"
-                else -> "jpg"
-            }
-            val destFile = File(avatarDir, "avatar_${System.currentTimeMillis()}.$ext")
-            appContext.contentResolver.openInputStream(sourceUri)?.use { input ->
-                destFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            } ?: return@runCatching null
-            Log.i(TAG, "copyAvatarToInternal: ${sourceUri} -> ${destFile.absolutePath}")
-            Uri.fromFile(destFile).toString()
-        }.onFailure {
-            Log.e(TAG, "copyAvatarToInternal failed", it)
-        }.getOrNull()
-    }
-
     /** 资料是否已配置完整 */
     fun isProfileComplete(): Boolean = userProfileStore.isComplete()
 
@@ -416,65 +380,9 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
         }.getOrNull()
     }
 
-    /**
-     * 将 SAF 返回的媒体 URI（图片/视频）复制到 App 私有目录，返回稳定的 file:// URI。
-     *
-     * 必要性：OpenDocument 返回的 content:// URI 是临时授权，进程重启后权限失效，
-     * 导致图片/视频读不出来（中间全黑。复制到 filesDir/works/<workId>/ 完全自主可控，重启后仍可读。
-     *
-     * @param workId 作品ID（用于子目录隔离不同作品的文件）
-     * @param sourceUri 原始 SAF content:// URI
-     * @param index 第几个媒体（多图时按顺序命名）
-     * @return 复制成功返回 "file:///..." 字符串，失败返回 null
-     */
-    suspend fun copyMediaToInternal(
-        workId: String,
-        sourceUri: Uri,
-        index: Int
-    ): String? = withContext(Dispatchers.IO) {
-        runCatching {
-            val appContext = getApplication<LocalMusicApp>()
-            val workDir = File(File(appContext.filesDir, "works"), workId).apply { mkdirs() }
-            // 从 MIME 类型推断扩展名（兜底 jpg/mp4）
-            val mimeType = appContext.contentResolver.getType(sourceUri)
-            val ext = when {
-                mimeType?.startsWith("video/") == true -> mimeType.substringAfterLast("/", "mp4")
-                mimeType == "image/png" -> "png"
-                mimeType == "image/webp" -> "webp"
-                mimeType == "image/gif" -> "gif"
-                else -> "jpg"
-            }
-            val destFile = File(workDir, "media_${index}.${ext}")
-            appContext.contentResolver.openInputStream(sourceUri)?.use { input ->
-                destFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            } ?: return@runCatching null
-            Log.i(TAG, "copyMediaToInternal: work=$workId idx=$index ${sourceUri} -> ${destFile.absolutePath}")
-            Uri.fromFile(destFile).toString()
-        }.onFailure {
-            Log.e(TAG, "copyMediaToInternal failed (work=$workId idx=$index)", it)
-        }.getOrNull()
-    }
-
     /** 新增作品 */
     fun addWork(work: CreatorWork) {
         workStore.add(work)
-    }
-
-    /** 清空所有作品，并删除私有目录里的媒体文件 */
-    fun clearAllWorks() {
-        viewModelScope.launch(Dispatchers.IO) {
-            // 先删文件再删记录，避免孤儿文件
-            runCatching {
-                val appContext = getApplication<LocalMusicApp>()
-                val worksDir = File(appContext.filesDir, "works")
-                if (worksDir.deleteRecursively()) {
-                    Log.i(TAG, "已清空作品媒体目录: ${worksDir.absolutePath}")
-                }
-            }
-            workStore.clearAll()
-        }
     }
 
     /** 更新作品（修改变量） */

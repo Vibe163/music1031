@@ -302,14 +302,6 @@ class MigrationManager(
         }.getOrDefault(uriStr.substringAfterLast('/'))
     }
 
-    /** 从 URI 中提取文件扩展名。 */
-    private fun extractFileExt(uriStr: String): String {
-        return runCatching {
-            val fileName = extractFileName(uriStr)
-            fileName.substringAfterLast('.', "").lowercase()
-        }.getOrDefault("")
-    }
-
     /** 构建文件名索引：fileName -> list of SongEntity。 */
     private fun buildFileNameIndex(songs: List<SongEntity>): Map<String, List<SongEntity>> {
         val idx = mutableMapOf<String, MutableList<SongEntity>>()

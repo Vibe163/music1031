@@ -343,10 +343,6 @@ class PlayerController(private val context: Context) {
         _uiState.value = _uiState.value.copy(playbackSpeed = clamped)
     }
 
-    fun getPlaybackSpeed(): Float {
-        return mediaController?.playbackParameters?.speed ?: _uiState.value.playbackSpeed
-    }
-
     fun togglePlayPause() {
         val controller = mediaController ?: return
         if (controller.isPlaying) {

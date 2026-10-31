@@ -48,7 +48,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * 抖音风格头像裁剪页
@@ -123,7 +122,9 @@ private fun CropArea(
 
         val w = bitmap.width.toFloat()
         val h = bitmap.height.toFloat()
-        val fitScale = min(boxPx / w, boxPx / h)
+        // 用 max（cover 而非 contain）：让较短边先填满正方形裁剪框，保证图片始终覆盖整个框，
+        // 否则非正方形图的短边填不满框，保存时换算出的裁剪尺寸会超过图片短边，coerceIn 范围非法而崩溃。
+        val fitScale = max(boxPx / w, boxPx / h)
 
         // 图片变换状态：scale（相对原图，px 单位尺寸 = w*scale × h*scale），offset 为居中位置的偏移
         var scale by remember(bitmap) { mutableStateOf(fitScale) }

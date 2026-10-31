@@ -13,12 +13,6 @@ interface FingerprintCacheDao {
     @Query("SELECT * FROM fingerprint_cache")
     suspend fun getAll(): List<FingerprintCacheEntity>
 
-    @Query("SELECT * FROM fingerprint_cache WHERE songId = :songId")
-    suspend fun get(songId: Long): FingerprintCacheEntity?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(rows: List<FingerprintCacheEntity>)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(row: FingerprintCacheEntity)
 }

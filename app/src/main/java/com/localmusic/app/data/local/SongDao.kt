@@ -37,9 +37,6 @@ interface SongDao {
     @Query("UPDATE songs SET lastPlayedAt = 0 WHERE id = :id")
     suspend fun clearRecentlyPlayed(id: Long)
 
-    @Query("SELECT COUNT(*) FROM songs")
-    fun observeCount(): Flow<Int>
-
     @Query("SELECT * FROM songs WHERE id = :id")
     suspend fun getById(id: Long): SongEntity?
 
@@ -79,10 +76,6 @@ interface SongDao {
     @Query("UPDATE songs SET favorite = :favorite WHERE id = :id")
     suspend fun updateFavorite(id: Long, favorite: Boolean)
 
-    /** 按 URI 路径前缀查找文件名。用于迁移匹配。 */
-    @Query("SELECT * FROM songs WHERE uri LIKE :pathPrefix || '%' ORDER BY title")
-    suspend fun findByUriPathPrefix(pathPrefix: String): List<SongEntity>
-
     /** 按文件名（URI 最后一段）+ 时长查找歌曲。精确匹配用。 */
     @Query("SELECT * FROM songs WHERE duration BETWEEN :minDuration AND :maxDuration ORDER BY id")
     suspend fun findByDurationRange(minDuration: Long, maxDuration: Long): List<SongEntity>
@@ -105,7 +98,4 @@ interface SongDao {
 
     @Query("DELETE FROM songs WHERE id = :id")
     suspend fun delete(id: Long)
-
-    @Query("DELETE FROM songs")
-    suspend fun deleteAll()
 }

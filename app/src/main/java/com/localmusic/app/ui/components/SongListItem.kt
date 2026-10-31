@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -103,16 +102,16 @@ fun SongListItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box {
+        Box(modifier = Modifier.size(48.dp)) {
             AlbumArt(
                 albumArtPath = song.albumArtPath,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.matchParentSize(),
                 cornerRadius = 10.dp
             )
             if (isActive) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .matchParentSize()
                         .background(
                             MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
                             RoundedCornerShape(10.dp)
