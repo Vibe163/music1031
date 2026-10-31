@@ -340,8 +340,8 @@ class MainActivity : ComponentActivity() {
             if (showCreatePlaylist) {
                 CreatePlaylistDialog(
                     onDismiss = { showCreatePlaylist = false },
-                    onConfirm = { name ->
-                        libraryViewModel.createPlaylist(name)
+                    onConfirm = { name, icon ->
+                        libraryViewModel.createPlaylist(name, icon)
                         showCreatePlaylist = false
                     }
                 )
@@ -709,13 +709,26 @@ class MainActivity : ComponentActivity() {
                     }
 
                     composable(Screen.PlaylistsTab.route) {
+                        val recentSongs by libraryViewModel.recentlyPlayedSongs.collectAsState()
                         PlaylistsScreen(
                             playlists = playlistsWithFavorites,
+                            recentlyPlayed = recentSongs,
                             onPlaylistClick = { playlistId ->
                                 navController.navigate(Screen.PlaylistDetail.createRoute(playlistId))
                             },
-                            onCreatePlaylist = { showCreatePlaylist = true },
-                            onDeletePlaylist = { libraryViewModel.deletePlaylist(it) }
+                            onOpenLocalMusic = {
+                                navController.navigate(Screen.Library.route) {
+                                    popUpTo(Screen.Library.route) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            },
+                            onPlayRecent = { index ->
+                                if (recentSongs.isNotEmpty()) {
+                                    val i = index.coerceIn(recentSongs.indices)
+                                    playerViewModel.playSongs(recentSongs, i)
+                                }
+                            },
+                            onCreatePlaylist = { showCreatePlaylist = true }
                         )
                     }
 
@@ -791,6 +804,9 @@ class MainActivity : ComponentActivity() {
                             onDeletePlaylist = {
                                 libraryViewModel.deletePlaylist(playlistId)
                                 navController.popBackStack()
+                            },
+                            onChildPlaylistClick = { childId ->
+                                navController.navigate(Screen.PlaylistDetail.createRoute(childId))
                             }
                         )
 

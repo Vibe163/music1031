@@ -21,7 +21,11 @@ data class PlaylistDetailUiState(
     val playlistName: String = "",
     val songs: List<Song> = emptyList(),
     val isFavorites: Boolean = false,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    /** 预设图标 key */
+    val icon: String = "",
+    /** 直接子歌单 */
+    val children: List<com.localmusic.app.data.model.PlaylistWithCount> = emptyList()
 )
 
 class PlaylistDetailViewModel(
@@ -41,6 +45,12 @@ class PlaylistDetailViewModel(
         .map { list -> list.map { it.toSong() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 直接子歌单（随歌单表变化实时刷新） */
+    val children: StateFlow<List<com.localmusic.app.data.model.PlaylistWithCount>> =
+        repository.observePlaylists()
+            .map { list -> list.filter { it.parentId == playlistId }.sortedBy { it.createdAt } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
         viewModelScope.launch {
             if (playlistId == FAVORITES_PLAYLIST_ID) {
@@ -56,18 +66,29 @@ class PlaylistDetailViewModel(
                     }
             } else {
                 combine(
-                    repository.observePlaylistSongIds(playlistId),
-                    repository.observeSongs()
-                ) { songIds, allSongs ->
-                    val songMap = allSongs.associateBy { it.id }
-                    songIds.mapNotNull { songMap[it] }.map { it.toSong() }
-                }.collect { songs ->
-                    val playlist = repository.getPlaylist(playlistId)
+                    combine(
+                        repository.observePlaylistSongIds(playlistId),
+                        repository.observeSongs()
+                    ) { songIds, allSongs ->
+                        val songMap = allSongs.associateBy { it.id }
+                        songIds.mapNotNull { songMap[it] }.map { it.toSong() }
+                    },
+                    repository.observePlaylists(),
+                    children
+                ) { songs, allPlaylists, childPlaylists ->
+                    val playlist = allPlaylists.firstOrNull { it.id == playlistId }
+                    val nameIcon = (playlist?.name ?: "歌单") to (playlist?.icon ?: "")
+                    Pair(nameIcon, songs) to childPlaylists
+                }.collect { (nameIconAndSongs, childPlaylists) ->
+                    val (nameIcon, songs) = nameIconAndSongs
+                    val (name, icon) = nameIcon
                     _uiState.value = PlaylistDetailUiState(
-                        playlistName = playlist?.name ?: "歌单",
+                        playlistName = name,
                         songs = songs,
                         isFavorites = false,
-                        isLoading = false
+                        isLoading = false,
+                        icon = icon,
+                        children = childPlaylists
                     )
                 }
             }
@@ -78,6 +99,21 @@ class PlaylistDetailViewModel(
         if (name.isBlank() || playlistId == FAVORITES_PLAYLIST_ID) return
         viewModelScope.launch {
             repository.renamePlaylist(playlistId, name)
+        }
+    }
+
+    fun updateIcon(icon: String) {
+        if (playlistId == FAVORITES_PLAYLIST_ID) return
+        viewModelScope.launch {
+            repository.updatePlaylistIcon(playlistId, icon)
+        }
+    }
+
+    /** 在当前歌单下创建子歌单 */
+    fun createSubPlaylist(name: String, icon: String) {
+        if (name.isBlank() || playlistId == FAVORITES_PLAYLIST_ID) return
+        viewModelScope.launch {
+            repository.createPlaylist(name, icon, parentId = playlistId)
         }
     }
 

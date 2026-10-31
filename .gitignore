@@ -20,3 +20,6 @@ app/build
 *~
 .env
 .vscode
+# 本地构建输出记录
+build_out.txt
+build_err.txt

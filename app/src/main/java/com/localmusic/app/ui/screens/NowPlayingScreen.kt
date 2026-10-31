@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,13 +20,16 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -74,9 +76,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -97,6 +97,8 @@ import com.localmusic.app.player.PlayerUiState
 import com.localmusic.app.ui.components.SongListItem
 import com.localmusic.app.ui.viewmodel.PlayerViewModel
 import com.localmusic.app.util.formatDuration
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.palette.graphics.Palette
 import kotlin.math.abs
 
@@ -134,28 +136,24 @@ fun NowPlayingScreen(
     LaunchedEffect(song?.albumArtPath) {
         val artPath = song?.albumArtPath
         if (!artPath.isNullOrBlank()) {
-            val request = ImageRequest.Builder(context).data(artPath).build()
-            val result = imageLoader.execute(request)
-            val drawable = result.drawable
-            if (drawable != null) {
-                val bitmap = drawable.toBitmap()
-                val palette = Palette.from(bitmap).generate()
-                val dom = palette.getDominantColor(android.graphics.Color.parseColor("#1E1E1E"))
-                val vib = palette.getVibrantColor(android.graphics.Color.parseColor("#4A90E2"))
-                dominantColor = Color(dom)
-                vibrantColor = Color(vib)
+            // 后台线程取色，避免主线程卡顿
+            val colors = withContext(Dispatchers.IO) {
+                runCatching {
+                    val request = ImageRequest.Builder(context).data(artPath).build()
+                    val result = imageLoader.execute(request)
+                    val drawable = result.drawable ?: return@runCatching null
+                    val bitmap = drawable.toBitmap()
+                    val palette = Palette.from(bitmap).generate()
+                    val dom = palette.getDominantColor(android.graphics.Color.parseColor("#1E1E1E"))
+                    val vib = palette.getVibrantColor(android.graphics.Color.parseColor("#4A90E2"))
+                    Color(dom) to Color(vib)
+                }.getOrNull()
+            }
+            if (colors != null) {
+                dominantColor = colors.first
+                vibrantColor = colors.second
             }
         }
-    }
-
-    val gradientBrush = remember(dominantColor, vibrantColor) {
-        Brush.verticalGradient(
-            colors = listOf(
-                dominantColor.copy(alpha = 0.95f),
-                dominantColor.copy(alpha = 0.88f),
-                Color.Black.copy(alpha = 0.95f)
-            )
-        )
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -207,10 +205,11 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 8.dp)
+                        .navigationBarsPadding(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(Modifier.weight(0.4f))
                     // Cover with swipe gestures
                     CoverWithSwipe(
                         artPath = song.albumArtPath,
@@ -221,7 +220,7 @@ fun NowPlayingScreen(
                         onSwipeRight = { viewModel.previousOrRestart() }
                     )
 
-                    Spacer(Modifier.height(28.dp))
+                    Spacer(Modifier.height(24.dp))
 
                     // Song info
                     Column(
@@ -235,50 +234,46 @@ fun NowPlayingScreen(
                             color = Color.White,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 32.sp
+                            textAlign = TextAlign.Center
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            text = song.artist.ifBlank { "未知艺术家" },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color.White.copy(alpha = 0.85f),
+                            text = buildString {
+                                append(song.artist.ifBlank { "未知艺术家" })
+                                if (song.album.isNotBlank() && song.album != "未知专辑") {
+                                    append(" · ")
+                                    append(song.album)
+                                }
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.75f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (song.album.isNotBlank() && song.album != "未知专辑") {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = song.album,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.55f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        Spacer(Modifier.height(12.dp))
 
                         Row(
-                            modifier = Modifier.padding(top = 4.dp),
+                            modifier = Modifier.padding(top = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             if (onToggleFavorite != null) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color.White.copy(alpha = 0.12f),
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = onToggleFavorite
-                                    )
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = onToggleFavorite
+                                        ),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = if (song.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                         contentDescription = "喜欢",
                                         tint = if (song.favorite) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.85f),
-                                        modifier = Modifier.padding(10.dp).size(22.dp)
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
                             }
@@ -308,7 +303,7 @@ fun NowPlayingScreen(
                         vibrantColor = vibrantColor
                     )
 
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(16.dp))
 
                     // Controls
                     ControlsRow(
@@ -321,7 +316,7 @@ fun NowPlayingScreen(
                         sleepRemaining = sleepRemaining
                     )
 
-                    Spacer(Modifier.weight(0.6f))
+                    Spacer(Modifier.height(24.dp))
                 }
             }
         }
@@ -414,67 +409,55 @@ private fun CoverWithSwipe(
         label = "cover_rotation"
     )
 
-    // 布局：外层容器承载可拖拽+背景光晕，内层封面单独旋转
     Box(
-        modifier = Modifier.size((coverSizeDp * 1.22f).dp),
+        modifier = Modifier
+            .size(coverSizeDp.dp)
+            .shadow(24.dp, RoundedCornerShape(28.dp), clip = false)
+            .graphicsLayer {
+                rotationZ = rotation
+                translationX = offsetX
+                alpha = 1f - (abs(offsetX) / 600f)
+            }
+            .clip(RoundedCornerShape(28.dp))
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { isUserInteracting = true },
+                    onDragEnd = {
+                        isUserInteracting = false
+                        offsetX = 0f
+                    },
+                    onDragCancel = {
+                        isUserInteracting = false
+                        offsetX = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        val newOffset = (offsetX + dragAmount).coerceIn(-400f, 400f)
+                        offsetX = newOffset
+                        if (offsetX < -120f) {
+                            onSwipeLeft()
+                            offsetX = 0f
+                        } else if (offsetX > 120f) {
+                            onSwipeRight()
+                            offsetX = 0f
+                        }
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
-        // 背面氛围光晕：静止，随封面主色呼吸
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .drawBehind {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                vibrantColor.copy(alpha = 0.34f),
-                                vibrantColor.copy(alpha = 0.10f),
-                                Color.Transparent
-                            ),
-                            center = Offset(size.width / 2f, size.height / 2f),
-                            radius = size.width * 0.46f
-                        ),
-                        radius = size.width * 0.46f
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            vibrantColor.copy(alpha = 0.75f),
+                            vibrantColor.copy(alpha = 0.35f),
+                            vibrantColor.copy(alpha = 0.15f)
+                        )
                     )
-                }
-                .graphicsLayer { alpha = 1f - (abs(offsetX) / 600f) }
-        )
-
-        Box(
-            modifier = Modifier
-                .size(coverSizeDp.dp)
-                .shadow(28.dp, RoundedCornerShape(30.dp), clip = false, ambientColor = Color(0x66000000))
-                .graphicsLayer {
-                    rotationZ = rotation
-                    translationX = offsetX
-                    alpha = 1f - (abs(offsetX) / 600f)
-                }
-                .clip(RoundedCornerShape(30.dp))
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { isUserInteracting = true },
-                        onDragEnd = {
-                            isUserInteracting = false
-                            offsetX = 0f
-                        },
-                        onDragCancel = {
-                            isUserInteracting = false
-                            offsetX = 0f
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            val newOffset = (offsetX + dragAmount).coerceIn(-400f, 400f)
-                            offsetX = newOffset
-                            if (offsetX < -120f) {
-                                onSwipeLeft()
-                                offsetX = 0f
-                            } else if (offsetX > 120f) {
-                                onSwipeRight()
-                                offsetX = 0f
-                            }
-                        }
-                    )
-                },
+                ),
             contentAlignment = Alignment.Center
         ) {
             if (!artPath.isNullOrBlank()) {
@@ -482,18 +465,20 @@ private fun CoverWithSwipe(
                     model = artPath,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(24.dp))
                 )
             } else {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
-                            Brush.verticalGradient(
+                            Brush.radialGradient(
                                 colors = listOf(
-                                    vibrantColor.copy(alpha = 0.85f),
-                                    vibrantColor.copy(alpha = 0.55f),
-                                    vibrantColor.copy(alpha = 0.30f)
+                                    vibrantColor.copy(alpha = 0.6f),
+                                    vibrantColor.copy(alpha = 0.2f)
                                 )
                             )
                         ),
@@ -502,18 +487,11 @@ private fun CoverWithSwipe(
                     Icon(
                         imageVector = Icons.Default.MusicNote,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.9f),
-                        modifier = Modifier.size((coverSizeDp * 0.42f).dp)
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size((coverSizeDp * 0.45f).dp)
                     )
                 }
             }
-            // 边缘高光描边：提亮封面轮廓，营造"玻璃唱片"质感
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(30.dp))
-                    .border(1.5.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(30.dp))
-            )
         }
     }
 }

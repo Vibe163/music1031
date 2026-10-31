@@ -14,7 +14,8 @@ interface PlaylistDao {
 
     @Query(
         """
-        SELECT p.id, p.name, p.createdAt, COUNT(ps.songId) AS songCount, 0 AS isBuiltIn
+        SELECT p.id, p.name, p.createdAt, p.icon, p.parentId,
+               COUNT(ps.songId) AS songCount, 0 AS isBuiltIn
         FROM playlists p
         LEFT JOIN playlist_songs ps ON p.id = ps.playlistId
         GROUP BY p.id
@@ -34,6 +35,17 @@ interface PlaylistDao {
 
     @Query("UPDATE playlists SET name = :name WHERE id = :playlistId")
     suspend fun renamePlaylist(playlistId: Long, name: String)
+
+    @Query("UPDATE playlists SET icon = :icon WHERE id = :playlistId")
+    suspend fun updatePlaylistIcon(playlistId: Long, icon: String)
+
+    /** 查询某歌单的直接子歌单 id（用于级联删除）。 */
+    @Query("SELECT id FROM playlists WHERE parentId = :parentId")
+    suspend fun getChildPlaylistIds(parentId: Long): List<Long>
+
+    /** 删除歌单前清理其歌曲关联，避免孤儿行。 */
+    @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId")
+    suspend fun deleteSongsInPlaylist(playlistId: Long)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addSongToPlaylist(playlistSong: PlaylistSong)

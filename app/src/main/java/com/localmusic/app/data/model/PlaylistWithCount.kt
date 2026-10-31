@@ -15,5 +15,9 @@ data class PlaylistWithCount(
     val name: String,
     val createdAt: Long,
     val songCount: Int,
-    val isBuiltIn: Boolean = false
+    val isBuiltIn: Boolean = false,
+    /** 预设图标 key，空串 = 默认 */
+    val icon: String = "",
+    /** 父歌单 id；null = 根级 */
+    val parentId: Long? = null
 )

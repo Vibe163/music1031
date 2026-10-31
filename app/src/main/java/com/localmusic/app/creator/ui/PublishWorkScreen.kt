@@ -2,6 +2,7 @@ package com.localmusic.app.creator.ui
 
 import android.Manifest
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -193,6 +194,7 @@ private fun Step1AlbumScreen(
     val selection = remember { mutableStateListOf<AlbumMediaItem>() }
     var loading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     LaunchedEffect(permGranted, filter) {
         if (!permGranted) return@LaunchedEffect
@@ -256,7 +258,20 @@ private fun Step1AlbumScreen(
                                     if (isSelected) {
                                         selection.removeAll { s -> s.id == item.id }
                                     } else {
-                                        selection.add(item)
+                                        // 选片规则（对齐抖音）：图文多选；视频单选；图与视频不可混选
+                                        val first = selection.firstOrNull()
+                                        when {
+                                            first == null -> selection.add(item)
+                                            first.isVideo != item.isVideo -> Toast.makeText(
+                                                context, "图片与视频不能混合选择", Toast.LENGTH_SHORT
+                                            ).show()
+                                            item.isVideo -> {
+                                                // 视频单选：点新视频替换旧视频
+                                                selection.clear()
+                                                selection.add(item)
+                                            }
+                                            else -> selection.add(item)
+                                        }
                                     }
                                 }
                             )

@@ -7,51 +7,68 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// 酷狗蓝主色
-private val KugouBlue = Color(0xFF2CA2F9)
-private val KugouBlueDark = Color(0xFF169CDD)
-private val KugouBlueLight = Color(0xFF4FB5FF) // 深色模式下更亮的蓝
+// —— 品牌色 ——
+val KugouBlue = Color(0xFF2CA2F9)
+val KugouBlueDark = Color(0xFF169CDD)
+val KugouBlueLight = Color(0xFF4FB5FF)
 
-// 深色
-private val DarkBackground = Color(0xFF0F1419)
-private val DarkSurface = Color(0xFF1A1F26)
-private val DarkSurfaceVariant = Color(0xFF2A323C)
-private val DarkOnSurfaceVariant = Color(0xFF9AA4B0)
+val AccentPink = Color(0xFFFF5C7A)
+val AccentGold = Color(0xFFFFC24B)
 
-// 浅色
-private val LightBackground = Color(0xFFF5F7FA)
-private val LightSurface = Color(0xFFFFFFFF)
-private val LightSurfaceVariant = Color(0xFFEEF2F6)
-private val LightOnSurfaceVariant = Color(0xFF5A6470)
+// —— 深色 ——
+val DarkBackground = Color(0xFF0B0F14)
+val DarkSurface = Color(0xFF151B23)
+val DarkSurfaceHigh = Color(0xFF1C2430)
+val DarkSurfaceVariant = Color(0xFF252E3A)
+val DarkOnSurfaceVariant = Color(0xFF8B98A6)
+val DarkOutline = Color(0xFF2E3844)
+
+// —— 浅色 ——
+val LightBackground = Color(0xFFF3F6FA)
+val LightSurface = Color(0xFFFFFFFF)
+val LightSurfaceHigh = Color(0xFFF8FAFC)
+val LightSurfaceVariant = Color(0xFFE8EEF4)
+val LightOnSurfaceVariant = Color(0xFF5A6470)
+val LightOutline = Color(0xFFD5DDE6)
 
 private val DarkColors = darkColorScheme(
     primary = KugouBlueLight,
-    onPrimary = Color(0xFF003258),
-    primaryContainer = Color(0xFF0E5A8A),
-    onPrimaryContainer = Color(0xFFD6EBFB),
-    secondary = Color(0xFF9AA4B0),
+    onPrimary = Color(0xFF00243C),
+    primaryContainer = Color(0xFF0D4F7A),
+    onPrimaryContainer = Color(0xFFC8E8FF),
+    secondary = KugouBlue,
+    onSecondary = Color(0xFF00243C),
+    tertiary = AccentPink,
+    onTertiary = Color.White,
     background = DarkBackground,
-    onBackground = Color(0xFFE8EDF2),
+    onBackground = Color(0xFFE6EDF4),
     surface = DarkSurface,
-    onSurface = Color(0xFFE8EDF2),
+    onSurface = Color(0xFFE6EDF4),
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkOnSurfaceVariant,
-    outline = Color(0xFF3A434E)
+    surfaceContainer = DarkSurfaceHigh,
+    outline = DarkOutline,
+    outlineVariant = Color(0xFF1F2833)
 )
 
 private val LightColors = lightColorScheme(
-    primary = KugouBlue,
+    primary = KugouBlueDark,
     onPrimary = Color.White,
     primaryContainer = Color(0xFFD6EBFB),
-    onPrimaryContainer = Color(0xFF0E5A8A),
-    secondary = Color(0xFF5A6470),
+    onPrimaryContainer = Color(0xFF0A4A72),
+    secondary = KugouBlue,
+    onSecondary = Color.White,
+    tertiary = AccentPink,
+    onTertiary = Color.White,
     background = LightBackground,
-    onBackground = Color(0xFF1A1F26),
+    onBackground = Color(0xFF15202B),
     surface = LightSurface,
-    onSurface = Color(0xFF1A1F26),
+    onSurface = Color(0xFF15202B),
     surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = LightOnSurfaceVariant,
-    outline = Color(0xFFCDD4DC)
+    surfaceContainer = LightSurfaceHigh,
+    outline = LightOutline,
+    outlineVariant = Color(0xFFE4EAF0)
 )
 
 @Composable
@@ -61,6 +78,8 @@ fun LocalMusicTheme(
 ) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
+        typography = AppTypography,
+        shapes = AppShapes,
         content = content
     )
 }

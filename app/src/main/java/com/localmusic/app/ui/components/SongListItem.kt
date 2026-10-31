@@ -1,16 +1,20 @@
 package com.localmusic.app.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
@@ -32,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localmusic.app.data.model.Song
+import com.localmusic.app.ui.theme.AccentPink
 import com.localmusic.app.util.formatDuration
 
 @Immutable
@@ -89,7 +94,7 @@ fun SongListItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(68.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -98,16 +103,36 @@ fun SongListItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        AlbumArt(
-            albumArtPath = song.albumArtPath,
-            modifier = Modifier.size(48.dp),
-            cornerRadius = 8.dp
-        )
+        Box {
+            AlbumArt(
+                albumArtPath = song.albumArtPath,
+                modifier = Modifier.size(48.dp),
+                cornerRadius = 10.dp
+            )
+            if (isActive) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
+                            RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Equalizer,
+                        contentDescription = "正在播放",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
                 color = if (isActive) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -123,16 +148,17 @@ fun SongListItem(
         }
         Text(
             text = durationText,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (onToggleFavorite != null) {
-            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = if (song.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = if (song.favorite) "取消喜欢" else "喜欢",
-                    tint = if (song.favorite) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (song.favorite) AccentPink
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

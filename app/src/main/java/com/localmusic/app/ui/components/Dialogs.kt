@@ -1,24 +1,42 @@
 package com.localmusic.app.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,41 +45,154 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.localmusic.app.data.migration.ImportSummary
 import com.localmusic.app.data.migration.PlaylistImportResult
 import com.localmusic.app.data.model.PlaylistWithCount
 import com.localmusic.app.data.model.Song
 
+/**
+ * 歌单图标选择区：仅支持相册选图。
+ * 选图后弹全屏裁剪页，完成后 icon 更新为 file:// 路径。
+ */
+@Composable
+private fun PlaylistIconSection(
+    icon: String,
+    onIconChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var cropUri by remember { mutableStateOf<Uri?>(null) }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri -> if (uri != null) cropUri = uri }
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 当前图标预览 + 相册选图按钮
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (PlaylistIcons.isCustomImage(icon)) {
+                    AsyncImage(
+                        model = icon,
+                        contentDescription = "当前图标",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Image,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = if (PlaylistIcons.isCustomImage(icon)) "已选择图标" else "从相册选择图标",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Button(
+                onClick = {
+                    picker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    Icons.Default.Image,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(if (PlaylistIcons.isCustomImage(icon)) "更换" else "选择", modifier = Modifier.padding(start = 4.dp))
+            }
+        }
+    }
+
+    cropUri?.let { uri ->
+        PlaylistIconCropDialog(
+            imageUri = uri,
+            onCancel = { cropUri = null },
+            onConfirm = { path ->
+                onIconChange(path)
+                cropUri = null
+            }
+        )
+    }
+}
+
+/**
+ * 新建歌单对话框：输入名称 + 选择图标。
+ * @param parentName 非空时表示在该歌单下创建子歌单
+ * @param onConfirm 返回 (名称, 图标 key 或 file:// 路径)
+ */
 @Composable
 fun CreatePlaylistDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String, String) -> Unit,
+    parentName: String? = null
 ) {
     var name by remember { mutableStateOf("") }
+    var icon by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("新建歌单") },
+        title = { Text(if (parentName != null) "新建子歌单" else "新建歌单") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("歌单名称") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (parentName != null) {
+                    Text(
+                        text = "位于「$parentName」下",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("歌单名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                PlaylistIconSection(
+                    icon = icon,
+                    onIconChange = { icon = it },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name.trim()) },
+                onClick = { onConfirm(name.trim(), icon) },
                 enabled = name.isNotBlank()
             ) {
                 Text("创建")
@@ -75,30 +206,39 @@ fun CreatePlaylistDialog(
     )
 }
 
-/** 重命名歌单对话框：初始值 [initialName]，确认后返回新名称。 */
+/** 编辑歌单对话框：改名 + 换图标（预设或相册图）。 */
 @Composable
 fun RenamePlaylistDialog(
     initialName: String,
+    initialIcon: String = "",
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String, String) -> Unit
 ) {
     var name by remember(initialName) { mutableStateOf(initialName) }
+    var icon by remember(initialIcon) { mutableStateOf(initialIcon) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("重命名歌单") },
+        title = { Text("编辑歌单") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("歌单名称") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("歌单名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                PlaylistIconSection(
+                    icon = icon,
+                    onIconChange = { icon = it },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name.trim()) },
+                onClick = { onConfirm(name.trim(), icon) },
                 enabled = name.isNotBlank()
             ) {
                 Text("保存")

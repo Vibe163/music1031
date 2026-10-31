@@ -234,33 +234,45 @@ fun CreatorFeedScreen(
                     MediaType.IMAGE -> {
                         ImageGallery(
                             imageUris = work.mediaList,
-                            isCurrentPage = isCurrentPage
+                            isCurrentPage = isCurrentPage,
+                            onDoubleTap = { offset ->
+                                // 图文双击点赞（手势放在画廊页内，避免全屏手势层拦截 HorizontalPager 横向滑动）
+                                if (isCurrentPage && !work.userLiked) {
+                                    heartX = offset.x
+                                    heartY = offset.y
+                                    showHeart = true
+                                    viewModel.updateWork(work.copy(userLiked = true))
+                                }
+                            }
                         )
                     }
                 }
 
-                // 双击点赞 + 单击暂停手势层
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(pageIndex) {
-                            detectTapGestures(
-                                onTap = {
-                                    if (work.mediaType == MediaType.VIDEO && isCurrentPage) {
-                                        isVideoPaused = !isVideoPaused
+                // 双击点赞 + 单击暂停手势层 —— 仅视频需要；
+                // 图文若也盖全屏手势层会与内层 HorizontalPager 冲突导致左右滑不动
+                if (work.mediaType == MediaType.VIDEO) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(pageIndex) {
+                                detectTapGestures(
+                                    onTap = {
+                                        if (isCurrentPage) {
+                                            isVideoPaused = !isVideoPaused
+                                        }
+                                    },
+                                    onDoubleTap = { offset ->
+                                        if (isCurrentPage && !work.userLiked) {
+                                            heartX = offset.x
+                                            heartY = offset.y
+                                            showHeart = true
+                                            viewModel.updateWork(work.copy(userLiked = true))
+                                        }
                                     }
-                                },
-                                onDoubleTap = { offset ->
-                                    if (isCurrentPage && !work.userLiked) {
-                                        heartX = offset.x
-                                        heartY = offset.y
-                                        showHeart = true
-                                        viewModel.updateWork(work.copy(userLiked = true))
-                                    }
-                                }
-                            )
-                        }
-                )
+                                )
+                            }
+                    )
+                }
 
                 // 视频暂停图标（中央大Play箭头）
                 if (work.mediaType == MediaType.VIDEO && isVideoPaused && isCurrentPage) {
@@ -934,7 +946,8 @@ private fun VideoProgressBar(
 @Composable
 private fun ImageGallery(
     imageUris: List<String>,
-    isCurrentPage: Boolean
+    isCurrentPage: Boolean,
+    onDoubleTap: (Offset) -> Unit = {}
 ) {
     if (imageUris.isEmpty()) {
         Box(
@@ -970,12 +983,23 @@ private fun ImageGallery(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
-            AsyncImage(
-                model = Uri.parse(imageUris[pageIndex]),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
-            )
+            // 双击点赞手势放在每页内部：父级 HorizontalPager 负责横向拖动，子级只处理点按，互不冲突
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(imageUris) {
+                        detectTapGestures(
+                            onDoubleTap = { offset -> onDoubleTap(offset) }
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = Uri.parse(imageUris[pageIndex]),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         // 多图指示器（底部圆点）
@@ -998,6 +1022,21 @@ private fun ImageGallery(
                     )
                 }
             }
+            // 页码指示（如 1/3），方便确认多图都已发布
+            Text(
+                text = "${pagerState.currentPage + 1}/${imageUris.size}",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 90.dp, end = 14.dp)
+                    .background(
+                        Color.Black.copy(alpha = 0.35f),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            )
         }
     }
 }

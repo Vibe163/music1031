@@ -110,6 +110,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val userPlaylists: StateFlow<List<PlaylistWithCount>> = repository.observePlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 最近播放歌曲（按最近播放时间倒序，上限 50）。供歌单页横滑区使用。 */
+    val recentlyPlayedSongs: StateFlow<List<Song>> = repository.observeRecentlyPlayedSongs()
+        .map { list -> list.map { it.toSong() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     /** 全部曲库歌曲（供"添加到歌单"弹窗等使用，与当前选中歌单无关）。 */
     val librarySongs: StateFlow<List<Song>> = repository.observeSongs()
         .map { list -> list.map { it.toSong() } }
@@ -225,10 +230,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _importProgress.value = _importProgress.value.copy(lastResult = null)
     }
 
-    fun createPlaylist(name: String, onCreated: (Long) -> Unit = {}) {
+    fun createPlaylist(
+        name: String,
+        icon: String = "",
+        parentId: Long? = null,
+        onCreated: (Long) -> Unit = {}
+    ) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            val id = repository.createPlaylist(name)
+            val id = repository.createPlaylist(name, icon, parentId)
             onCreated(id)
         }
     }

@@ -70,6 +70,8 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
         if (FORCE_CLEAR_WORKS_ON_INIT) {
             clearAllWorks()
         }
+        // 清理孤儿作品媒体目录：works/ 下存在但作品记录已不存在的目录（历史复制方案残留/删除竞态）
+        cleanupOrphanWorkFiles()
     }
 
     /** 所有作品，按创建时间倒序 */
@@ -246,7 +248,9 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * 用草稿数据发布最终作品：
-     * 1) 把 Step1 选中的相册媒体复制到 App 私有目录
+     * 1) 直接引用 Step1 选中的相册媒体的 MediaStore content:// URI（不复制文件）
+     *    —— 相册 URI 经 MediaStore 查询获得，App 持有 READ_MEDIA_IMAGES/VIDEO 权限即可长期读取，
+     *    无需复制到私有目录（避免大视频占用双倍存储）。原文件被用户删除时播放端已有占位兜底。
      * 2) 构造 CreatorWork 并写入
      * 返回是否成功
      */
@@ -262,17 +266,13 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
             if (!userProfileStore.isComplete()) return@withContext false
 
             val workId = UUID.randomUUID().toString()
-            onProgress("复制媒体文件...")
-            val copiedUris = mutableListOf<String>()
-            for ((index, item) in sel.withIndex()) {
-                val copied = copyMediaToInternal(workId, item.contentUri, index)
-                if (copied != null) copiedUris.add(copied)
+            onProgress("校验媒体文件...")
+            // 快速探测每个 URI 当前可读（防选中后立即被删），不做文件复制
+            val mediaUris = mutableListOf<String>()
+            for (item in sel) {
+                if (isMediaReadable(item.contentUri)) mediaUris.add(item.contentUri.toString())
             }
-            if (copiedUris.isEmpty()) {
-                // 失败时清理已复制的孤儿文件
-                cleanupWorkFiles(workId)
-                return@withContext false
-            }
+            if (mediaUris.isEmpty()) return@withContext false
 
             onProgress("保存作品...")
             val mediaType = if (sel.any { it.isVideo })
@@ -285,7 +285,7 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
                 authorName = profile.nickname,
                 authorAvatarUri = profile.avatarUri,
                 authorBio = profile.bio,
-                mediaList = copiedUris,
+                mediaList = mediaUris,
                 mediaType = mediaType,
                 title = _draftTitle.value.trim(),
                 caption = _draftCaption.value.trim(),
@@ -310,12 +310,40 @@ class CreatorViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 清理指定 workId 的媒体文件（发布失败时用） */
+    /** 快速探测 URI 当前是否可读（open 一次即关，不读内容） */
+    private fun isMediaReadable(uri: Uri): Boolean = runCatching {
+        getApplication<LocalMusicApp>().contentResolver.openInputStream(uri)?.use { it.read() != -1 } == true
+    }.getOrDefault(false)
+
+    /** 清理指定 workId 的媒体文件（发布失败时用；仅旧版复制方案遗留文件需要） */
     private fun cleanupWorkFiles(workId: String) {
         runCatching {
             val appContext = getApplication<LocalMusicApp>()
             val workDir = File(appContext.filesDir, "works/$workId")
             if (workDir.exists()) workDir.deleteRecursively()
+        }
+    }
+
+    /**
+     * 清理孤儿作品媒体目录：filesDir/works/ 下存在、但作品记录里已没有对应 workId 的目录。
+     * 覆盖场景：历史版本删除作品时文件未同步删、删除协程被中断、JSON 记录损坏丢失等。
+     */
+    private fun cleanupOrphanWorkFiles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val appContext = getApplication<LocalMusicApp>()
+                val worksDir = File(appContext.filesDir, "works")
+                if (!worksDir.exists()) return@launch
+                val aliveIds = workStore.works.value.map { it.id }.toSet()
+                worksDir.listFiles()?.forEach { dir ->
+                    if (dir.isDirectory && dir.name !in aliveIds) {
+                        val freed = dir.deleteRecursively()
+                        Log.i(TAG, "cleanupOrphanWorkFiles: ${dir.name} deleted=$freed")
+                    }
+                }
+            }.onFailure {
+                Log.e(TAG, "cleanupOrphanWorkFiles failed", it)
+            }
         }
     }
 

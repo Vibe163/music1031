@@ -8,7 +8,11 @@ data class Playlist(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** 预设图标 key（见 PlaylistIcons），空串 = 默认音乐图标 */
+    val icon: String = "",
+    /** 父歌单 id；null = 根级歌单（支持多级子歌单，类似文件夹） */
+    val parentId: Long? = null
 )
 
 @Entity(

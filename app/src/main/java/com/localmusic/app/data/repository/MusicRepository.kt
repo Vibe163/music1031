@@ -413,17 +413,40 @@ class MusicRepository(
 
     // ---------- 歌单 ----------
 
-    suspend fun createPlaylist(name: String): Long =
-        playlistDao.insertPlaylist(Playlist(name = name.trim()))
+    suspend fun createPlaylist(
+        name: String,
+        icon: String = "",
+        parentId: Long? = null
+    ): Long =
+        playlistDao.insertPlaylist(
+            Playlist(name = name.trim(), icon = icon, parentId = parentId)
+        )
 
+    /** 删除歌单（含全部子孙歌单及各自的歌曲关联）。 */
     suspend fun deletePlaylist(playlistId: Long) {
         if (playlistId == com.localmusic.app.data.model.ALL_SONGS_PLAYLIST_ID) return
         if (playlistId == com.localmusic.app.data.model.FAVORITES_PLAYLIST_ID) return
-        playlistDao.deletePlaylist(playlistId)
+        // BFS 收集所有子孙 id
+        val toDelete = mutableSetOf(playlistId)
+        var frontier = listOf(playlistId)
+        while (frontier.isNotEmpty()) {
+            val next = frontier.flatMap { playlistDao.getChildPlaylistIds(it) }
+                .filter { it !in toDelete }
+            toDelete += next
+            frontier = next
+        }
+        toDelete.forEach {
+            playlistDao.deleteSongsInPlaylist(it)
+            playlistDao.deletePlaylist(it)
+        }
     }
 
     suspend fun renamePlaylist(playlistId: Long, name: String) {
         playlistDao.renamePlaylist(playlistId, name.trim())
+    }
+
+    suspend fun updatePlaylistIcon(playlistId: Long, icon: String) {
+        playlistDao.updatePlaylistIcon(playlistId, icon)
     }
 
     suspend fun addSongToPlaylist(playlistId: Long, songId: Long) {
